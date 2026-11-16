@@ -1,17 +1,39 @@
 {
   "name": "k6-typescript-framework",
   "version": "1.0.0",
-  "description": "k6 TypeScript testing framework",
-  "main": "index.js",
+  "description": "Enterprise plug-and-play k6 TypeScript performance testing framework",
+  "main": "dist/baseline.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"no test specified\""
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "run": "npm run build && k6 run dist/baseline.js",
+    "run:smoke": "npm run build && k6 run -e LOAD_PROFILE=smoke dist/baseline.js",
+    "run:load": "npm run build && k6 run -e LOAD_PROFILE=load dist/baseline.js",
+    "run:stress": "npm run build && k6 run -e LOAD_PROFILE=stress dist/baseline.js"
   },
-  "keywords": [],
+  "keywords": [
+    "k6",
+    "typescript",
+    "performance-testing",
+    "load-testing"
+  ],
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/k6": "^0.50.0",
-    "typescript": "^5.4.5"
+    "@types/node": "^26.6.6",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.2.1",
+    "prettier": "^3.8.3",
+    "typescript": "^5.4.5",
+    "typescript-eslint": "^8.58.2",
+    "vitest": "^4.1.4"
   }
 }

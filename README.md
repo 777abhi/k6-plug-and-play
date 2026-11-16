@@ -1,24 +1,75 @@
-# k6 TypeScript Framework
+# k6 Plug-and-Play TypeScript Framework
 
-This repository is a reusable, pluggable k6 performance testing framework built with TypeScript. It is based on the `grafana/k6-template-typescript` structure and configured to use ES modules.
+An enterprise-ready, plug-and-play [k6](https://k6.io/) performance testing template built with TypeScript, `esbuild`, strict linting, unit tests, and GitHub Actions CI/CD.
 
-## Current Features
+## Features
 
-Currently, the framework contains the following features:
-*   **TypeScript Support:** Fully configured with TypeScript for strong typing and explicit avoidance of the `any` type.
-*   **ES Modules:** Configured to use ES modules (`"type": "module"`) with `NodeNext` module resolution.
-*   **API Client (`src/libs/client.ts`):** A wrapper around the `k6/http` module that provides strongly-typed methods for making `GET`, `POST`, `PUT`, and `DELETE` requests. It handles payload serialization, response parsing, and standard headers.
-*   **Environment Configuration (`src/config/env.ts`):** Supports multiple environments (e.g., `dev`, `staging`) with environment-specific base URLs and standard headers. It uses `__ENV.TARGET_ENV` to determine the active environment.
-*   **Sample Scenario (`src/scenarios/baseline.ts`):** A baseline k6 script demonstrating how to use the API client, configure options (stages, thresholds), and validate responses with checks.
+- **TypeScript + esbuild Bundling:** Strict TypeScript (`no explicit any`) compiled into k6-ready ESM bundles under `dist/`.
+- **Environment Configuration (`src/config/env.ts`):** Preconfigured `local`, `dev`, `staging`, and `prod` targets with `__ENV` overrides (`TARGET_ENV`, `BASE_URL`, `REQUEST_TIMEOUT`) and URL validation.
+- **Load Profiles & Dynamic Thresholds (`src/config/profiles.ts`):** Built-in `smoke`, `load`, `stress`, and `soak` profiles plus per-endpoint tag threshold builders (`buildEndpointThresholds`).
+- **Pluggable Authentication (`src/libs/auth.ts`):** Out-of-the-box support for `none`, `bearer`, `apikey`, and `oauth2` (Client Credentials with expiry-aware token caching).
+- **Hardened API Client (`src/libs/client.ts`):** Typed `get`, `post`, `put`, `patch`, and `del` methods with automatic auth header injection, `X-Request-ID` correlation IDs, custom metrics recording, and structured error logging.
+- **Parameterized & Synthetic Data (`src/libs/data.ts`):** `SharedArray`-backed CSV/JSON loaders and `DataGenerator` helpers.
+- **Observability & Reporting (`src/libs/metrics.ts`, `src/libs/reporting.ts`):** Shared custom metrics (`business_errors`, `api_duration`, `api_success_rate`, `active_iterations`) and `createSummaryHandler()` generating HTML, JSON, and JUnit XML reports in `reports/`.
+- **Containerized Execution (`Dockerfile`):** Zero-setup k6 execution via `grafana/k6`.
+- **CI/CD Ready (`.github/workflows/`):** PR quality gates (`ci.yml`) and manual/scheduled k6 execution with report artifact uploads (`perf-test.yml`).
 
-## Incremental Next Features
+## Quick Start
 
-The following features should be incrementally built for this utility to enhance its capabilities:
+1. **Install dependencies:**
 
-1.  **Authentication & Authorization Helpers:** Implement utilities for handling common auth flows, such as fetching and caching JWT tokens, or supporting OAuth login flows.
-2.  **Shared Metrics Collection:** Add support for reusable custom metrics (Counters, Trends, Gauges, Rates) to track business-specific metrics across different scenarios.
-3.  **Advanced Threshold Configurations:** Expand the threshold definitions to be configurable per service or endpoint, potentially reading from centralized configs.
-4.  **CI/CD Integration:** Provide example configurations or scripts for integrating the tests into CI/CD pipelines (e.g., GitHub Actions, GitLab CI).
-5.  **Data Generation & Parameterized Data:** Introduce helpers for generating synthetic test data and utilities for loading parameterized test data from external files like CSVs.
-6.  **Reporting:** Integrate tools or configurations for generating visual HTML reports from k6 results.
-7.  **Dynamic Scenarios:** Add the ability to dynamically compose k6 scenarios based on environment or configuration instead of hardcoding them in the test scripts.
+   ```bash
+   npm install
+   ```
+
+2. **Copy environment template (optional for local runs):**
+
+   ```bash
+   cp .env.example .env
+   ```
+
+3. **Run quality checks & unit tests:**
+
+   ```bash
+   npm run typecheck
+   npm run lint
+   npm test
+   ```
+
+4. **Build k6 bundles:**
+
+   ```bash
+   npm run build
+   ```
+
+5. **Run a scenario with k6:**
+   ```bash
+   # Smoke test against dev
+   k6 run -e TARGET_ENV=dev -e LOAD_PROFILE=smoke dist/baseline.js
+
+   # Override base URL and use Bearer auth
+   k6 run -e BASE_URL=https://api.example.com -e AUTH_TYPE=bearer -e AUTH_TOKEN=my-jwt dist/baseline.js
+   ```
+
+## Docker Execution
+
+```bash
+npm run build
+docker build -t k6-perf .
+docker run --rm -e TARGET_ENV=dev -e LOAD_PROFILE=smoke -v "$(pwd)/reports:/app/reports" k6-perf
+```
+
+## Prometheus / Grafana Remote Write
+
+To stream metrics to Prometheus / Grafana Cloud:
+
+```bash
+K6_PROMETHEUS_RW_SERVER_URL=http://localhost:9090/api/v1/write \
+  k6 run -o experimental-prometheus-rw dist/baseline.js
+```
+
+## Adding a New Scenario
+
+1. Create `src/scenarios/my-service.ts`.
+2. Export `options` via `buildOptions(...)`, instantiate `ApiClient`, and export `handleSummary = createSummaryHandler(...)`.
+3. Run `npm run build` — `scripts/build.mjs` automatically bundles every `.ts` file in `src/scenarios/` into `dist/`.

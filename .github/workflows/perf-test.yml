@@ -1,0 +1,73 @@
+name: k6 Performance Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: 'Target environment (local, dev, staging, prod)'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      load_profile:
+        description: 'Load profile (smoke, load, stress, soak)'
+        required: true
+        default: 'smoke'
+        type: choice
+        options:
+          - smoke
+          - load
+          - stress
+          - soak
+      scenario:
+        description: 'Scenario bundle name in dist/ (without .js)'
+        required: true
+        default: 'baseline'
+        type: string
+  schedule:
+    - cron: '0 6 * * 1'
+
+jobs:
+  run-k6:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build k6 bundles
+        run: npm run build
+
+      - name: Run k6 scenario
+        uses: grafana/k6-action@v0.3.1
+        with:
+          filename: dist/${{ inputs.scenario || 'baseline' }}.js
+        env:
+          TARGET_ENV: ${{ inputs.target_env || 'dev' }}
+          LOAD_PROFILE: ${{ inputs.load_profile || 'smoke' }}
+          BASE_URL: ${{ vars.K6_BASE_URL }}
+          AUTH_TYPE: ${{ vars.K6_AUTH_TYPE || 'none' }}
+          AUTH_TOKEN: ${{ secrets.K6_AUTH_TOKEN }}
+          API_KEY: ${{ secrets.K6_API_KEY }}
+          OAUTH_TOKEN_URL: ${{ vars.K6_OAUTH_TOKEN_URL }}
+          OAUTH_CLIENT_ID: ${{ secrets.K6_OAUTH_CLIENT_ID }}
+          OAUTH_CLIENT_SECRET: ${{ secrets.K6_OAUTH_CLIENT_SECRET }}
+
+      - name: Upload performance reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-reports-${{ inputs.target_env || 'dev' }}-${{ inputs.load_profile || 'smoke' }}
+          path: reports/
+          retention-days: 30

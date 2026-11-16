@@ -1,0 +1,4 @@
+name,email,role
+Alice Johnson,alice.johnson@example.com,admin
+Bob Smith,bob.smith@example.com,editor
+Carol Davis,carol.davis@example.com,viewer

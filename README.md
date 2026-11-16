@@ -59,6 +59,24 @@ docker build -t k6-perf .
 docker run --rm -e TARGET_ENV=dev -e LOAD_PROFILE=smoke -v "$(pwd)/reports:/app/reports" k6-perf
 ```
 
+## Local Sandbox & Observability (Mock API + Prometheus + Grafana)
+
+Start the full local sandbox (mock API on `:3000`, Prometheus on `:9090`, Grafana on `:3001` with a pre-built k6 dashboard):
+
+```bash
+npm run build
+docker compose up -d mock-api prometheus grafana
+docker compose --profile run up k6
+```
+
+Or run just the zero-dependency mock API locally:
+
+```bash
+npm run mock
+# In another terminal:
+k6 run -e TARGET_ENV=local -e LOAD_PROFILE=smoke dist/baseline.js
+```
+
 ## Prometheus / Grafana Remote Write
 
 To stream metrics to Prometheus / Grafana Cloud:

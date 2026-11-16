@@ -1,0 +1,42 @@
+{
+  "title": "k6 Plug-and-Play Overview",
+  "uid": "k6-plug-and-play",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Virtual Users (VUs)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [{ "expr": "k6_vus", "legendFormat": "VUs" }]
+    },
+    {
+      "id": 2,
+      "title": "HTTP Requests / sec",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "targets": [{ "expr": "rate(k6_http_reqs_total[1m])", "legendFormat": "req/s" }]
+    },
+    {
+      "id": 3,
+      "title": "HTTP Request Duration (p95)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(k6_http_req_duration_seconds_bucket[1m])) by (le))",
+          "legendFormat": "p95 (s)"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "HTTP Failure Rate",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "targets": [{ "expr": "rate(k6_http_req_failed_total[1m])", "legendFormat": "fail rate" }]
+    }
+  ]
+}

@@ -167,6 +167,24 @@ export interface SummaryHandlerOptions {
   suiteName?: string;
 }
 
+export const buildTextSummary = (data: K6SummaryData, title = 'k6 Performance Report'): string => {
+  const durationSec = ((data.state?.testRunDurationMs ?? 0) / 1000).toFixed(2);
+  const lines = [`=== ${title} (${durationSec}s) ===`];
+
+  for (const [name, metric] of Object.entries(data.metrics ?? {})) {
+    if (!metric.thresholds) continue;
+    for (const [expr, res] of Object.entries(metric.thresholds)) {
+      lines.push(`  [${res.ok ? 'PASS' : 'FAIL'}] ${name}: ${expr}`);
+    }
+  }
+
+  for (const check of data.root_group?.checks ?? []) {
+    lines.push(`  [CHECK] ${check.name}: ${check.passes} passed, ${check.fails} failed`);
+  }
+
+  return `${lines.join('\n')}\n`;
+};
+
 export const createSummaryHandler = (options: SummaryHandlerOptions = {}) => {
   const reportDir = options.reportDir ?? 'reports';
   const title = options.title ?? 'k6 Performance Report';
@@ -174,6 +192,7 @@ export const createSummaryHandler = (options: SummaryHandlerOptions = {}) => {
 
   return (data: K6SummaryData): Record<string, string> => {
     return {
+      stdout: buildTextSummary(data, title),
       [`${reportDir}/summary.html`]: buildHtmlReport(data, title),
       [`${reportDir}/summary.json`]: JSON.stringify(data, null, 2),
       [`${reportDir}/junit.xml`]: buildJunitXml(data, suiteName),

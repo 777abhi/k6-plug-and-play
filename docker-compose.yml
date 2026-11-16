@@ -1,0 +1,64 @@
+services:
+  mock-api:
+    image: node:22-alpine
+    working_dir: /app
+    volumes:
+      - ./scripts/mock-server.mjs:/app/mock-server.mjs:ro
+    command: ['node', '/app/mock-server.mjs']
+    environment:
+      PORT: '3000'
+      REQUIRE_AUTH: 'false'
+    ports:
+      - '3000:3000'
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:3000/health']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  prometheus:
+    image: prom/prometheus:latest
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--web.enable-remote-write-receiver'
+      - '--enable-feature=native-histograms'
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - '9090:9090'
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: 'true'
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - '3001:3000'
+    depends_on:
+      - prometheus
+
+  k6:
+    image: grafana/k6:latest
+    profiles: ['run']
+    working_dir: /app
+    volumes:
+      - ./dist:/app/dist:ro
+      - ./data:/app/data:ro
+      - ./reports:/app/reports
+    environment:
+      TARGET_ENV: local
+      BASE_URL: http://mock-api:3000
+      LOAD_PROFILE: smoke
+      K6_PROMETHEUS_RW_SERVER_URL: http://prometheus:9090/api/v1/write
+      K6_PROMETHEUS_RW_TREND_AS_NATIVE_HISTOGRAM: 'true'
+    command: ['run', '-o', 'experimental-prometheus-rw', '/app/dist/baseline.js']
+    depends_on:
+      mock-api:
+        condition: service_healthy
+      prometheus:
+        condition: service_started

@@ -36,3 +36,62 @@ jobs:
 
       - name: Build k6 bundles
         run: npm run build
+
+  e2e-smoke:
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build k6 bundles
+        run: npm run build
+
+      - name: Start mock API server
+        run: |
+          mkdir -p reports
+          REQUIRE_AUTH=true node scripts/mock-server.mjs &
+          for i in $(seq 1 15); do
+            if curl -sf http://localhost:3000/health > /dev/null; then
+              echo "Mock API ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Mock API failed to start"
+          exit 1
+
+      - name: Run k6 smoke test against mock API
+        uses: grafana/k6-action@v0.3.1
+        with:
+          filename: dist/baseline.js
+        env:
+          TARGET_ENV: local
+          LOAD_PROFILE: smoke
+          AUTH_TYPE: oauth2
+          OAUTH_TOKEN_URL: http://localhost:3000/oauth/token
+          OAUTH_CLIENT_ID: ci-client
+          OAUTH_CLIENT_SECRET: ci-secret
+
+      - name: Verify generated reports
+        run: |
+          test -s reports/summary.html
+          test -s reports/summary.json
+          test -s reports/junit.xml
+
+      - name: Upload smoke test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-ci-smoke-reports
+          path: reports/
+          retention-days: 14

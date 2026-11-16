@@ -1,3 +1,4 @@
+import { sleep } from 'k6';
 import http, { RefinedResponse, ResponseType } from 'k6/http';
 import { EnvConfig } from '../config/env.js';
 import { AuthProvider, NoAuthProvider } from './auth.js';
@@ -8,18 +9,25 @@ export interface RequestOptions {
   tags?: Record<string, string>;
   timeout?: string;
   responseType?: ResponseType;
+  maxRetries?: number;
 }
 
 export interface ApiClientOptions {
   authProvider?: AuthProvider;
   enableCorrelationId?: boolean;
   logErrors?: boolean;
+  maxRetries?: number;
+  retryDelayMs?: number;
+  retryOnStatuses?: number[];
+  sleepFn?: (seconds: number) => void;
 }
 
 export interface TypedResponse<T> {
   response: RefinedResponse<ResponseType>;
   data: T | null;
 }
+
+const DEFAULT_RETRY_STATUSES = [0, 429, 502, 503, 504];
 
 const generateCorrelationId = (): string => {
   const rand = Math.random().toString(16).slice(2, 10);
@@ -31,12 +39,20 @@ export class ApiClient {
   private readonly authProvider: AuthProvider;
   private readonly enableCorrelationId: boolean;
   private readonly logErrors: boolean;
+  private readonly maxRetries: number;
+  private readonly retryDelayMs: number;
+  private readonly retryOnStatuses: Set<number>;
+  private readonly sleepFn: (seconds: number) => void;
 
   constructor(config: EnvConfig, clientOptions: ApiClientOptions = {}) {
     this.config = config;
     this.authProvider = clientOptions.authProvider ?? new NoAuthProvider();
     this.enableCorrelationId = clientOptions.enableCorrelationId ?? true;
     this.logErrors = clientOptions.logErrors ?? true;
+    this.maxRetries = clientOptions.maxRetries ?? 0;
+    this.retryDelayMs = clientOptions.retryDelayMs ?? 200;
+    this.retryOnStatuses = new Set(clientOptions.retryOnStatuses ?? DEFAULT_RETRY_STATUSES);
+    this.sleepFn = clientOptions.sleepFn ?? sleep;
   }
 
   private buildUrl(path: string): string {
@@ -78,6 +94,27 @@ export class ApiClient {
     return null;
   }
 
+  private executeWithRetry(
+    requestFn: (merged: RequestOptions) => RefinedResponse<ResponseType>,
+    options?: RequestOptions
+  ): { response: RefinedResponse<ResponseType>; merged: RequestOptions; correlationId?: string } {
+    const retries = options?.maxRetries ?? this.maxRetries;
+    let attempt = 0;
+
+    while (true) {
+      const { merged, correlationId } = this.mergeOptions(options);
+      const response = requestFn(merged);
+
+      if (attempt >= retries || !this.retryOnStatuses.has(response.status)) {
+        return { response, merged, correlationId };
+      }
+
+      const backoffSec = (this.retryDelayMs * Math.pow(2, attempt)) / 1000;
+      this.sleepFn(backoffSec);
+      attempt++;
+    }
+  }
+
   private handleResponse<T>(
     method: string,
     url: string,
@@ -114,48 +151,49 @@ export class ApiClient {
 
   public get<T>(path: string, options?: RequestOptions): TypedResponse<T> {
     const url = this.buildUrl(path);
-    const { merged, correlationId } = this.mergeOptions(options);
-    const response = http.get(url, merged) as unknown as RefinedResponse<ResponseType>;
+    const { response, merged, correlationId } = this.executeWithRetry(
+      (m) => http.get(url, m) as unknown as RefinedResponse<ResponseType>,
+      options
+    );
     return this.handleResponse<T>('GET', url, response, merged, correlationId);
   }
 
   public post<P, T>(path: string, payload: P, options?: RequestOptions): TypedResponse<T> {
     const url = this.buildUrl(path);
-    const { merged, correlationId } = this.mergeOptions(options);
-    const response = http.post(
-      url,
-      this.serializeBody(payload),
-      merged
-    ) as unknown as RefinedResponse<ResponseType>;
+    const body = this.serializeBody(payload);
+    const { response, merged, correlationId } = this.executeWithRetry(
+      (m) => http.post(url, body, m) as unknown as RefinedResponse<ResponseType>,
+      options
+    );
     return this.handleResponse<T>('POST', url, response, merged, correlationId);
   }
 
   public put<P, T>(path: string, payload: P, options?: RequestOptions): TypedResponse<T> {
     const url = this.buildUrl(path);
-    const { merged, correlationId } = this.mergeOptions(options);
-    const response = http.put(
-      url,
-      this.serializeBody(payload),
-      merged
-    ) as unknown as RefinedResponse<ResponseType>;
+    const body = this.serializeBody(payload);
+    const { response, merged, correlationId } = this.executeWithRetry(
+      (m) => http.put(url, body, m) as unknown as RefinedResponse<ResponseType>,
+      options
+    );
     return this.handleResponse<T>('PUT', url, response, merged, correlationId);
   }
 
   public patch<P, T>(path: string, payload: P, options?: RequestOptions): TypedResponse<T> {
     const url = this.buildUrl(path);
-    const { merged, correlationId } = this.mergeOptions(options);
-    const response = http.patch(
-      url,
-      this.serializeBody(payload),
-      merged
-    ) as unknown as RefinedResponse<ResponseType>;
+    const body = this.serializeBody(payload);
+    const { response, merged, correlationId } = this.executeWithRetry(
+      (m) => http.patch(url, body, m) as unknown as RefinedResponse<ResponseType>,
+      options
+    );
     return this.handleResponse<T>('PATCH', url, response, merged, correlationId);
   }
 
   public del<T>(path: string, options?: RequestOptions): TypedResponse<T> {
     const url = this.buildUrl(path);
-    const { merged, correlationId } = this.mergeOptions(options);
-    const response = http.del(url, null, merged) as unknown as RefinedResponse<ResponseType>;
+    const { response, merged, correlationId } = this.executeWithRetry(
+      (m) => http.del(url, null, m) as unknown as RefinedResponse<ResponseType>,
+      options
+    );
     return this.handleResponse<T>('DELETE', url, response, merged, correlationId);
   }
 }

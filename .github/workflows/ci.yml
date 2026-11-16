@@ -70,10 +70,22 @@ jobs:
           echo "Mock API failed to start"
           exit 1
 
-      - name: Run k6 smoke test against mock API
+      - name: Run k6 baseline smoke test against mock API
         uses: grafana/k6-action@v0.3.1
         with:
           filename: dist/baseline.js
+        env:
+          TARGET_ENV: local
+          LOAD_PROFILE: smoke
+          AUTH_TYPE: oauth2
+          OAUTH_TOKEN_URL: http://localhost:3000/oauth/token
+          OAUTH_CLIENT_ID: ci-client
+          OAUTH_CLIENT_SECRET: ci-secret
+
+      - name: Run k6 user-journey smoke test against mock API
+        uses: grafana/k6-action@v0.3.1
+        with:
+          filename: dist/user-journey.js
         env:
           TARGET_ENV: local
           LOAD_PROFILE: smoke

@@ -15,6 +15,7 @@
     "mock": "node scripts/mock-server.mjs",
     "new:scenario": "node scripts/new-scenario.mjs",
     "new:from-openapi": "node scripts/from-openapi.mjs",
+    "compare:baseline": "node scripts/compare-baseline.mjs",
     "run": "npm run build && k6 run dist/baseline.js",
     "run:smoke": "npm run build && k6 run -e LOAD_PROFILE=smoke dist/baseline.js",
     "run:load": "npm run build && k6 run -e LOAD_PROFILE=load dist/baseline.js",

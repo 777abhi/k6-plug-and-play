@@ -1,0 +1,26 @@
+apiVersion: k6.io/v1alpha1
+kind: TestRun
+metadata:
+  name: k6-plug-and-play-load
+spec:
+  parallelism: 4
+  script:
+    configMap:
+      name: k6-scenarios
+      file: baseline.js
+  arguments: --tag testid=k8s-distributed
+  runner:
+    env:
+      - name: TARGET_ENV
+        value: staging
+      - name: LOAD_PROFILE
+        value: load
+      - name: AUTH_TYPE
+        value: none
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi

@@ -88,6 +88,25 @@ K6_PROMETHEUS_RW_SERVER_URL=http://localhost:9090/api/v1/write \
 
 ## Adding a New Scenario
 
-1. Create `src/scenarios/my-service.ts`.
-2. Export `options` via `buildOptions(...)`, instantiate `ApiClient`, and export `handleSummary = createSummaryHandler(...)`.
+1. Scaffold a blank scenario or generate one from an OpenAPI 3.x spec:
+   ```bash
+   npm run new:scenario my-service
+   # or from OpenAPI:
+   npm run new:from-openapi data/sample-openapi.json my-openapi-suite
+   ```
+2. For GraphQL APIs, wrap `ApiClient` with [`GraphQLClient`](src/libs/graphql.ts):
+   ```ts
+   const gql = new GraphQLClient(apiClient);
+   const res = gql.query<MyData>('query GetItems { items { id } }', undefined, 'GetItems');
+   ```
 3. Run `npm run build` — `scripts/build.mjs` automatically bundles every `.ts` file in `src/scenarios/` into `dist/`.
+
+## Distributed Execution on Kubernetes (`k6-operator`)
+
+Create a `ConfigMap` from the built bundle and apply [k8s/testrun.yaml](k8s/testrun.yaml):
+
+```bash
+npm run build
+kubectl create configmap k6-scenarios --from-file=dist/baseline.js
+kubectl apply -f k8s/testrun.yaml
+```

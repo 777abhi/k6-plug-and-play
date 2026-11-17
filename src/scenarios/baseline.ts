@@ -1,10 +1,11 @@
 import { Options } from 'k6/options';
-import { check, sleep } from 'k6';
 import { ApiClient } from '../libs/client.js';
 import { getEnvConfig } from '../config/env.js';
 import { buildOptions } from '../config/profiles.js';
 import { createAuthProviderFromEnv } from '../libs/auth.js';
+import { assertResponse } from '../libs/assertions.js';
 import { DataGenerator, loadCsvData } from '../libs/data.js';
+import { randomSleep } from '../libs/pacing.js';
 import { createSummaryHandler } from '../libs/reporting.js';
 
 export const options: Options = buildOptions({
@@ -41,11 +42,12 @@ export default function () {
   const getRes = apiClient.get<UserResponse[]>('users', {
     tags: { endpoint: 'list_users' },
   });
-  check(getRes.response, {
-    'GET users status is 200': (r) => r.status === 200,
+  assertResponse('GET users', getRes.response, {
+    expectedStatus: 200,
+    nonEmptyArray: true,
   });
 
-  sleep(1);
+  randomSleep(0.5, 1.2);
 
   const seed = DataGenerator.pickRandom(seedUsers);
   const payload: CreateUserPayload = {
@@ -56,11 +58,12 @@ export default function () {
   const postRes = apiClient.post<CreateUserPayload, UserResponse>('users', payload, {
     tags: { endpoint: 'create_user' },
   });
-  check(postRes.response, {
-    'POST user status is 201': (r) => r.status === 201,
+  assertResponse('POST user', postRes.response, {
+    expectedStatus: 201,
+    requiredFields: ['id', 'name', 'email'],
   });
 
-  sleep(1);
+  randomSleep(0.5, 1.2);
 }
 
 export const handleSummary = createSummaryHandler({

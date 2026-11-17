@@ -86,3 +86,34 @@ export const getEnvConfig = (envSource?: EnvSource): EnvConfig => {
     standardHeaders: { ...baseConfig.standardHeaders },
   };
 };
+
+export interface PartialEnvOverrides {
+  baseUrl?: string;
+  timeout?: string;
+  standardHeaders?: Record<string, string>;
+}
+
+export const loadEnvConfigFromJson = (jsonText: string, envSource?: EnvSource): EnvConfig => {
+  const env = resolveEnvSource(envSource);
+  const targetEnv = (env.TARGET_ENV || 'dev').toLowerCase();
+  const parsed = JSON.parse(jsonText) as Record<string, PartialEnvOverrides>;
+  const jsonOverride = parsed[targetEnv];
+
+  const base = getEnvConfig(envSource);
+  if (!jsonOverride) {
+    return base;
+  }
+
+  const resolvedBaseUrl = validateBaseUrl(env.BASE_URL || jsonOverride.baseUrl || base.baseUrl);
+  const resolvedTimeout = env.REQUEST_TIMEOUT || jsonOverride.timeout || base.timeout;
+
+  return {
+    ...base,
+    baseUrl: resolvedBaseUrl,
+    timeout: resolvedTimeout,
+    standardHeaders: {
+      ...base.standardHeaders,
+      ...jsonOverride.standardHeaders,
+    },
+  };
+};

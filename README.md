@@ -110,3 +110,31 @@ npm run build
 kubectl create configmap k6-scenarios --from-file=dist/baseline.js
 kubectl apply -f k8s/testrun.yaml
 ```
+
+## Module & Script Reference
+
+| Module                                           | Purpose                                                                       |
+| ------------------------------------------------ | ----------------------------------------------------------------------------- |
+| `src/config/env.ts` & `config/environments.json` | Environment config + JSON & `__ENV` overrides                                 |
+| `src/config/profiles.ts`                         | `smoke`/`load`/`stress`/`soak`, arrival-rate & multi-scenario composers       |
+| `src/libs/auth.ts`                               | `none`, `bearer`, `apikey`, `oauth2` client credentials with caching          |
+| `src/libs/client.ts`                             | Typed REST client with retries, correlation IDs, circuit breaker & error logs |
+| `src/libs/graphql.ts`                            | Typed `GraphQLClient` (`query`, `mutate`)                                     |
+| `src/libs/grpc.ts`                               | `GrpcClient` with proto loading & auth metadata                               |
+| `src/libs/websocket.ts`                          | `WebSocketClient` with auth headers & lifecycle handlers                      |
+| `src/libs/browser.ts`                            | `openAndMeasure` for `k6/experimental/browser`                                |
+| `src/libs/circuit-breaker.ts`                    | Fail-fast `CLOSED`/`OPEN`/`HALF_OPEN` resilience guard                        |
+| `src/libs/pacing.ts`                             | `randomSleep` jitter & `paceIteration`                                        |
+| `src/libs/assertions.ts`                         | Composable `assertResponse` contract checks                                   |
+| `src/libs/data.ts`                               | `SharedArray` CSV/JSON loaders & `DataGenerator`                              |
+| `src/libs/metrics.ts` & `src/libs/reporting.ts`  | Custom metrics + `stdout`, HTML, JSON, and JUnit XML reports                  |
+
+| Script                                        | Purpose                                           |
+| --------------------------------------------- | ------------------------------------------------- |
+| `npm run build`                               | Bundle `src/scenarios/*.ts` into `dist/*.js`      |
+| `npm run typecheck` / `lint` / `format:check` | Static quality gates                              |
+| `npm test`                                    | Run Vitest unit test suite                        |
+| `npm run mock`                                | Start local mock API server on `:3000`            |
+| `npm run new:scenario <name>`                 | Scaffold a new scenario in `src/scenarios/`       |
+| `npm run new:from-openapi <spec> <name>`      | Generate a scenario from an OpenAPI 3.x JSON spec |
+| `npm run compare:baseline <base> <curr>`      | Regression gate comparing `summary.json` files    |

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getEnvConfig } from '../src/config/env.js';
+import { getEnvConfig, loadEnvConfigFromJson } from '../src/config/env.js';
 
 describe('getEnvConfig', () => {
   it('defaults to dev environment when TARGET_ENV is not set', () => {
@@ -33,5 +33,26 @@ describe('getEnvConfig', () => {
     expect(() => getEnvConfig({ TARGET_ENV: 'dev', BASE_URL: 'ftp://bad-url' })).toThrow(
       /Invalid BASE_URL/
     );
+  });
+
+  it('merges JSON environment config with __ENV overrides', () => {
+    const json = JSON.stringify({
+      staging: {
+        baseUrl: 'https://json-staging.example.com',
+        timeout: '45s',
+        standardHeaders: { 'X-Tenant': 'acme' },
+      },
+    });
+
+    const fromJson = loadEnvConfigFromJson(json, { TARGET_ENV: 'staging' });
+    expect(fromJson.baseUrl).toBe('https://json-staging.example.com');
+    expect(fromJson.timeout).toBe('45s');
+    expect(fromJson.standardHeaders['X-Tenant']).toBe('acme');
+
+    const withEnvOverride = loadEnvConfigFromJson(json, {
+      TARGET_ENV: 'staging',
+      BASE_URL: 'https://ci-override.example.com',
+    });
+    expect(withEnvOverride.baseUrl).toBe('https://ci-override.example.com');
   });
 });

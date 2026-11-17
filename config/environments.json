@@ -1,0 +1,18 @@
+{
+  "local": {
+    "baseUrl": "http://localhost:3000",
+    "timeout": "30s"
+  },
+  "dev": {
+    "baseUrl": "https://dev-api.example.com",
+    "timeout": "30s"
+  },
+  "staging": {
+    "baseUrl": "https://staging-api.example.com",
+    "timeout": "30s"
+  },
+  "prod": {
+    "baseUrl": "https://api.example.com",
+    "timeout": "30s"
+  }
+}

@@ -124,3 +124,60 @@ export const buildOptions = (params: BuildOptionsParams = {}): Options => {
     ...params.overrides,
   };
 };
+
+export interface ArrivalRateConfig {
+  rate: number;
+  timeUnit?: string;
+  duration: string;
+  preAllocatedVUs: number;
+  maxVUs?: number;
+  exec?: string;
+}
+
+export const buildArrivalRateOptions = (
+  config: ArrivalRateConfig,
+  params: Omit<BuildOptionsParams, 'overrides'> = {}
+): Options => {
+  const profile = getLoadProfile(params.envSource);
+  const endpointThresholds = params.endpointThresholds
+    ? buildEndpointThresholds(params.endpointThresholds)
+    : {};
+
+  return {
+    scenarios: {
+      constant_rps: {
+        executor: 'constant-arrival-rate',
+        rate: config.rate,
+        timeUnit: config.timeUnit ?? '1s',
+        duration: config.duration,
+        preAllocatedVUs: config.preAllocatedVUs,
+        maxVUs: config.maxVUs ?? config.preAllocatedVUs * 2,
+        ...(config.exec ? { exec: config.exec } : {}),
+      },
+    },
+    thresholds: {
+      ...profile.defaultThresholds,
+      ...endpointThresholds,
+      ...params.extraThresholds,
+    },
+  };
+};
+
+export const composeScenarios = (
+  scenarios: NonNullable<Options['scenarios']>,
+  params: Omit<BuildOptionsParams, 'overrides'> = {}
+): Options => {
+  const profile = getLoadProfile(params.envSource);
+  const endpointThresholds = params.endpointThresholds
+    ? buildEndpointThresholds(params.endpointThresholds)
+    : {};
+
+  return {
+    scenarios,
+    thresholds: {
+      ...profile.defaultThresholds,
+      ...endpointThresholds,
+      ...params.extraThresholds,
+    },
+  };
+};

@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { buildEndpointThresholds, buildOptions, getLoadProfile } from '../src/config/profiles.js';
+import {
+  buildArrivalRateOptions,
+  buildEndpointThresholds,
+  buildOptions,
+  composeScenarios,
+  getLoadProfile,
+} from '../src/config/profiles.js';
 
 describe('load profiles', () => {
   it('defaults to smoke profile', () => {
@@ -35,5 +41,32 @@ describe('load profiles', () => {
     expect(opts.thresholds?.http_req_failed).toEqual(['rate<0.01']);
     expect(opts.thresholds?.['http_req_duration{endpoint:orders}']).toEqual(['p(95)<400']);
     expect(opts.thresholds?.business_errors).toEqual(['count<5']);
+  });
+
+  it('builds constant-arrival-rate options', () => {
+    const opts = buildArrivalRateOptions(
+      { rate: 50, duration: '1m', preAllocatedVUs: 10 },
+      { envSource: { LOAD_PROFILE: 'smoke' } }
+    );
+    expect(opts.scenarios?.constant_rps).toMatchObject({
+      executor: 'constant-arrival-rate',
+      rate: 50,
+      timeUnit: '1s',
+      duration: '1m',
+      preAllocatedVUs: 10,
+      maxVUs: 20,
+    });
+  });
+
+  it('composes multiple dynamic scenarios with thresholds', () => {
+    const opts = composeScenarios(
+      {
+        steady: { executor: 'constant-vus', vus: 5, duration: '30s' },
+        spike: { executor: 'per-vu-iterations', vus: 10, iterations: 2, startTime: '30s' },
+      },
+      { endpointThresholds: [{ endpointTag: 'checkout', p95Ms: 300 }] }
+    );
+    expect(Object.keys(opts.scenarios ?? {})).toEqual(['steady', 'spike']);
+    expect(opts.thresholds?.['http_req_duration{endpoint:checkout}']).toEqual(['p(95)<300']);
   });
 });

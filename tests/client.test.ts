@@ -107,4 +107,17 @@ describe('ApiClient', () => {
     expect(logged.method).toBe('GET');
     errorSpy.mockRestore();
   });
+
+  it('trips CircuitBreaker on consecutive 5xx and throws CircuitOpenError', async () => {
+    const { CircuitBreaker, CircuitOpenError } = await import('../src/libs/circuit-breaker.js');
+    mockHttp.get.mockReturnValue(makeResponse(503, null, 'down'));
+
+    const cb = new CircuitBreaker({ failureThreshold: 2, resetTimeoutMs: 60_000 });
+    const client = new ApiClient(testConfig, { circuitBreaker: cb, logErrors: false });
+
+    client.get('health');
+    client.get('health');
+    expect(() => client.get('health')).toThrow(CircuitOpenError);
+    expect(mockHttp.get).toHaveBeenCalledTimes(2);
+  });
 });

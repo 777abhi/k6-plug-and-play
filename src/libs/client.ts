@@ -2,6 +2,7 @@ import { sleep } from 'k6';
 import http, { RefinedResponse, ResponseType } from 'k6/http';
 import { EnvConfig } from '../config/env.js';
 import { AuthProvider, NoAuthProvider } from './auth.js';
+import { CircuitBreaker, CircuitOpenError } from './circuit-breaker.js';
 import { recordApiMetrics } from './metrics.js';
 
 export interface RequestOptions {
@@ -20,6 +21,7 @@ export interface ApiClientOptions {
   retryDelayMs?: number;
   retryOnStatuses?: number[];
   sleepFn?: (seconds: number) => void;
+  circuitBreaker?: CircuitBreaker;
 }
 
 export interface TypedResponse<T> {
@@ -43,6 +45,7 @@ export class ApiClient {
   private readonly retryDelayMs: number;
   private readonly retryOnStatuses: Set<number>;
   private readonly sleepFn: (seconds: number) => void;
+  private readonly circuitBreaker?: CircuitBreaker;
 
   constructor(config: EnvConfig, clientOptions: ApiClientOptions = {}) {
     this.config = config;
@@ -53,6 +56,7 @@ export class ApiClient {
     this.retryDelayMs = clientOptions.retryDelayMs ?? 200;
     this.retryOnStatuses = new Set(clientOptions.retryOnStatuses ?? DEFAULT_RETRY_STATUSES);
     this.sleepFn = clientOptions.sleepFn ?? sleep;
+    this.circuitBreaker = clientOptions.circuitBreaker;
   }
 
   private buildUrl(path: string): string {
@@ -98,6 +102,10 @@ export class ApiClient {
     requestFn: (merged: RequestOptions) => RefinedResponse<ResponseType>,
     options?: RequestOptions
   ): { response: RefinedResponse<ResponseType>; merged: RequestOptions; correlationId?: string } {
+    if (this.circuitBreaker && !this.circuitBreaker.allowRequest()) {
+      throw new CircuitOpenError();
+    }
+
     const retries = options?.maxRetries ?? this.maxRetries;
     let attempt = 0;
 
@@ -124,6 +132,14 @@ export class ApiClient {
   ): TypedResponse<T> {
     const endpointTag = options?.tags?.endpoint ?? url;
     recordApiMetrics(response, endpointTag);
+
+    if (this.circuitBreaker) {
+      if (response.status >= 500 || response.status === 0) {
+        this.circuitBreaker.recordFailure();
+      } else {
+        this.circuitBreaker.recordSuccess();
+      }
+    }
 
     if (this.logErrors && (response.status >= 400 || response.status === 0)) {
       const bodyPreview =
